@@ -1,0 +1,47 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: moodmatch_web
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=1
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-change-this}
+      - DATABASE_URL=postgres://moodmatch:moodmatchpass@db:5432/moodmatch
+      - REDIS_URL=redis://redis:6379/0
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+    volumes:
+      - ./static:/app/static
+      - ./media:/app/media
+    depends_on:
+      - db
+      - redis
+    command: daphne -b 0.0.0.0 -p 8000 moodmatch.asgi:application
+
+  db:
+    image: postgres:16-alpine
+    container_name: moodmatch_db
+    environment:
+      - POSTGRES_DB=moodmatch
+      - POSTGRES_USER=moodmatch
+      - POSTGRES_PASSWORD=moodmatchpass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: moodmatch_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
