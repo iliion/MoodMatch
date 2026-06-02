@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoodMatch — Music for Your Mood</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --mood-happy: #FFD93D;
+            --mood-sad: #6C9BCF;
+            --mood-energetic: #FF6B6B;
+            --mood-chill: #7BED9F;
+            --mood-focused: #A29BFE;
+            --mood-romantic: #FD79A8;
+            --mood-angry: #E17055;
+            --mood-melancholy: #74B9FF;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0f;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        .bg-animated {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .bg-animated::before {
+            content: '';
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(124, 93, 250, 0.15), transparent 70%);
+            top: -200px;
+            right: -100px;
+            animation: float1 20s ease-in-out infinite;
+        }
+
+        .bg-animated::after {
+            content: '';
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 107, 107, 0.1), transparent 70%);
+            bottom: -150px;
+            left: -100px;
+            animation: float2 25s ease-in-out infinite;
+        }
+
+        @keyframes float1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(-80px, 60px) scale(1.1); }
+            66% { transform: translate(40px, -40px) scale(0.9); }
+        }
+
+        @keyframes float2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(60px, -80px) scale(1.15); }
+            66% { transform: translate(-40px, 40px) scale(0.85); }
+        }
+
+        .glass {
+            background: rgba(15, 15, 25, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .glass-light {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        /* Mood cards */
+        .mood-card {
+            position: relative;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            overflow: hidden;
+        }
+
+        .mood-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .mood-card:hover {
+            transform: translateY(-8px) scale(1.02);
+        }
+
+        .mood-card:hover::before {
+            opacity: 1;
+        }
+
+        .mood-card.active {
+            transform: translateY(-4px) scale(1.01);
+        }
+
+        .mood-glow {
+            position: absolute;
+            inset: -2px;
+            border-radius: inherit;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            z-index: -1;
+            filter: blur(12px);
+        }
+
+        .mood-card:hover .mood-glow,
+        .mood-card.active .mood-glow {
+            opacity: 0.6;
+        }
+
+        /* Pulse animation for now playing */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(1.4); opacity: 0; }
+        }
+
+        .pulse-ring {
+            animation: pulse-ring 2s ease-out infinite;
+        }
+
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .spin-slow {
+            animation: spin-slow 8s linear infinite;
+        }
+
+        .spin-slow.paused {
+            animation-play-state: paused;
+        }
+
+        /* Equalizer bars */
+        @keyframes eq1 { 0%, 100% { height: 8px; } 50% { height: 24px; } }
+        @keyframes eq2 { 0%, 100% { height: 16px; } 50% { height: 8px; } }
+        @keyframes eq3 { 0%, 100% { height: 12px; } 50% { height: 28px; } }
+        @keyframes eq4 { 0%, 100% { height: 20px; } 50% { height: 10px; } }
+
+        .eq-bar-1 { animation: eq1 0.8s ease-in-out infinite; }
+        .eq-bar-2 { animation: eq2 0.6s ease-in-out infinite 0.1s; }
+        .eq-bar-3 { animation: eq3 0.7s ease-in-out infinite 0.2s; }
+        .eq-bar-4 { animation: eq4 0.5s ease-in-out infinite 0.15s; }
+
+        .eq-bar-1.paused, .eq-bar-2.paused, .eq-bar-3.paused, .eq-bar-4.paused {
+            animation-play-state: paused;
+        }
+
+        /* Chat */
+        .chat-messages {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .slide-up {
+            animation: slideUp 0.4s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        /* Toast */
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        .toast-in { animation: slideInRight 0.4s ease-out forwards; }
+        .toast-out { animation: slideOutRight 0.3s ease-in forwards; }
+
+        /* Progress bar */
+        @keyframes progress {
+            from { width: 0%; }
+            to { width: 100%; }
+        }
+
+        /* Track hover */
+        .track-row {
+            transition: all 0.2s ease;
+        }
+
+        .track-row:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .track-row:hover .track-play {
+            opacity: 1;
+        }
+
+        .track-play {
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        /* Lyrics scroll */
+        .lyrics-container {
+            mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+        }
+
+        /* Section transitions */
+        .view-section {
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        .view-section.hidden-view {
+            opacity: 0;
+            transform: translateY(20px);
+            pointer-events: none;
+            position: absolute;
+        }
+
+        .view-section.active-view {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+
+        /* Mobile nav */
+        @media (max-width: 768px) {
+            .desktop-nav { display: none; }
+            .mobile-nav { display: flex; }
+        }
+
+        @media (min-width: 769px) {
+            .mobile-nav { display: none; }
+        }
+
+        .chat-bubble {
+            max-width: 80%;
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animated"></div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+
+    <!-- Main App -->
+    <div class="relative z-10 min-h-screen flex flex-col">
+
+        <!-- Navbar -->
+        <nav class="glass sticky top-0 z-40 border-b border-white/5">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <!-- Logo -->
+                    <div class="flex items-center gap-3 cursor-pointer" onclick="showView('mood-select')">
+                        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                            <i data-lucide="music" class="w-5 h-5 text-white"></i>
+                        </div>
+                        <span class="text-xl font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">MoodMatch</span>
+                    </div>
+
+                    <!-- Desktop Nav -->
+                    <div class="desktop-nav flex items-center gap-1">
+                        <button onclick="showView('mood-select')" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all" data-nav="mood-select">
+                            <span class="flex items-center gap-2"><i data-lucide="smile" class="w-4 h-4"></i> Moods</span>
+                        </button>
+                        <button onclick="showView('player')" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all" data-nav="player">
+                            <span class="flex items-center gap-2"><i data-lucide="play-circle" class="w-4 h-4"></i> Player</span>
+                        </button>
+                        <button onclick="showView('chat')" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all" data-nav="chat">
+                            <span class="flex items-center gap-2"><i data-lucide="message-circle" class="w-4 h-4"></i> Chat</span>
+                        </button>
+                    </div>
+
+                    <!-- User -->
+                    <div class="flex items-center gap-3">
+                        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full glass-light">
+                            <div class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                            <span class="text-xs text-gray-400" id="online-count">247 online</span>
+                        </div>
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold cursor-pointer">
+                            U
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Content Area -->
+        <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 relative">
+
+            <!-- VIEW: Mood Select -->
+            <section id="view-mood-select" class="view-section active-view">
+                <!-- Hero -->
+                <div class="text-center mb-10">
+                    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black mb-4 leading-tight">
+                        How are you
+                        <span class="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">feeling?</span>
+                    </h1>
+                    <p class="text-gray-400 text-lg max-w-xl mx-auto">Pick your mood and discover music that matches your vibe. Chat with people who feel the same.</p>
+                </div>
+
+                <!-- Mood Grid -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-10" id="mood-grid">
+                    <!-- Moods will be injected -->
+                </div>
+
+                <!-- Currently Active Mood Banner -->
+                <div id="active-mood-banner" class="hidden glass rounded-2xl p-6 slide-up">
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div class="flex items-center gap-4">
+                            <div class="w-14 h-14 rounded-xl flex items-center justify-center text-3xl" id="banner-emoji">😊</div>
+                            <div>
+                                <p class="text-sm text-gray-400">Currently vibing with</p>
+                                <h3 class="text-xl font-bold" id="banner-mood-name">Happy</h3>
+                            </div>
+                            <div class="flex items-center gap-1 ml-4">
+                                <div class="w-1 h-3 bg-green-400 rounded-full eq-bar-1"></div>
+                                <div class="w-1 h-5 bg-green-400 rounded-full eq-bar-2"></div>
+                                <div class="w-1 h-4 bg-green-400 rounded-full eq-bar-3"></div>
+                                <div class="w-1 h-6 bg-green-400 rounded-full eq-bar-4"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="showView('player')" class="px-5 py-2.5 rounded-xl bg-white text-gray-900 font-semibold text-sm hover:bg-gray-100 transition-all flex items-center gap-2">
+                                <i data-lucide="play" class="w-4 h-4"></i> Play Mix
+                            </button>
+                            <button onclick="showView('chat')" class="px-5 py-2.5 rounded-xl glass-light text-white font-medium text-sm hover:bg-white/10 transition-all flex items-center gap-2">
+                                <i data-lucide="message-circle" class="w-4 h-4"></i> Chat
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: Player -->
+            <section id="view-player" class="view-section hidden-view">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                    <!-- Now Playing -->
+                    <div class="lg:col-span-1">
+                        <div class="glass rounded-2xl p-6 sticky top-24">
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">Now Playing</h3>
+
+                            <!-- Vinyl -->
+                            <div class="relative w-48 h-48 mx-auto mb-6">
+                                <div class="absolute inset-0 rounded-full pulse-ring" id="vinyl-glow" style="background: rgba(124,93,250,0.3);"></div>
+                                <div class="w-48 h-48 rounded-full spin-slow relative" id="vinyl-disc">
+                                    <img src="http://static.photos/abstract/200x200/42" alt="Album Art" class="w-32 h-32 rounded-full object-cover absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" id="album-art">
+                                    <div class="absolute inset-0 rounded-full" style="background: radial-gradient(circle at 50% 50%, transparent 30%, rgba(0,0,0,0.3) 31%, transparent 32%, transparent 48%, rgba(0,0,0,0.15) 49%, transparent 50%);"></div>
+                                    <div class="w-4 h-4 rounded-full bg-gray-800 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 border border-gray-600"></div>
+                                </div>
+                            </div>
+
+                            <!-- Track Info -->
+                            <div class="text-center mb-4">
+                                <h4 class="text-lg font-bold" id="track-title">Blinding Lights</h4>
+                                <p class="text-sm text-gray-400" id="track-artist">The Weeknd</p>
+                                <div class="flex items-center justify-center gap-2 mt-2">
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-medium" id="track-mood-badge">Energetic</span>
+                                </div>
+                            </div>
+
+                            <!-- Progress -->
+                            <div class="mb-4">
+                                <div class="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full transition-all duration-300" id="progress-bar" style="width: 35%;"></div>
+                                </div>
+                                <div class="flex justify-between mt-1.5">
+                                    <span class="text-xs text-gray-500 font-mono" id="time-current">1:14</span>
+                                    <span class="text-xs text-gray-500 font-mono" id="time-total">3:22</span>
+                                </div>
+                            </div>
+
+                            <!-- Controls -->
+                            <div class="flex items-center justify-center gap-4">
+                                <button onclick="prevTrack()" class="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                                    <i data-lucide="skip-back" class="w-5 h-5"></i>
+                                </button>
+                                <button onclick="togglePlay()" class="w-14 h-14 rounded-full bg-white flex items-center justify-center text-gray-900 hover:scale-105 transition-transform" id="play-btn">
+                                    <i data-lucide="play" class="w-6 h-6 ml-0.5" id="play-icon"></i>
+                                </button>
+                                <button onclick="nextTrack()" class="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                                    <i data-lucide="skip-forward" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+
+                            <!-- Volume -->
+                            <div class="flex items-center gap-3 mt-4 px-2">
+                                <i data-lucide="volume-1" class="w-4 h-4 text-gray-500"></i>
+                                <input type="range" min="0" max="100" value="75" class="flex-1 h-1 accent-violet-500 cursor-pointer" id="volume-slider">
+                                <i data-lucide="volume-2" class="w-4 h-4 text-gray-500"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tracklist -->
+                    <div class="lg:col-span-2">
+                        <div class="glass rounded-2xl p-6">
+                            <div class="flex items-center justify-between mb-6">
+                                <div>
+                                    <h3 class="text-xl font-bold" id="playlist-title">Energetic Mix</h3>
+                                    <p class="text-sm text-gray-400" id="playlist-desc">High-energy tracks to power your day</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="px-3 py-1.5 rounded-lg glass-light text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1.5" onclick="shufflePlaylist()">
+                                        <i data-lucide="shuffle" class="w-3.5 h-3.5"></i> Shuffle
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Track List -->
+                            <div class="space-y-1" id="track-list">
+                                <!-- Injected -->
+                            </div>
+                        </div>
+
+                        <!-- Lyrics Preview -->
+                        <div class="glass rounded-2xl p-6 mt-6">
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3 flex items-center gap-2">
+                                <i data-lucide="text" class="w-3.5 h-3.5"></i> Lyrics
+                            </h3>
+                            <div class="lyrics-container max-h-40 overflow-y-auto">
+                                <p class="text-gray-500 text-sm leading-relaxed" id="lyrics-content">
+                                    I've been tryna call<br>
+                                    I've been on my own for long enough<br>
+                                    Maybe you can show me how to love, maybe<br>
+                                    <span class="text-white font-medium">I'm going through withdrawals</span><br>
+                                    <span class="text-white font-medium">You don't even have to do too much</span><br>
+                                    <span class="text-gray-300">You can call me out of my name</span><br>
+                                    <span class="text-gray-500">And I'll still want you the same</span><br>
+                                    <span class="text-gray-600">I've been tryna call</span><br>
+                                    <span class="text-gray-700">Maybe I should just go home</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: Chat -->
+            <section id="view-chat" class="view-section hidden-view">
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-180px)]">
+
+                    <!-- Rooms Sidebar -->
+                    <div class="lg:col-span-1 glass rounded-2xl p-4 flex flex-col">
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3 px-2">Mood Rooms</h3>
+                        <div class="space-y-1 flex-1 overflow-y-auto" id="room-list">
+                            <!-- Injected -->
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-white/5 px-2">
+                            <div class="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                                <div class="w-2 h-2 rounded-full bg-green-400"></div>
+                                <span id="room-online">247 people chatting</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Area -->
+                    <div class="lg:col-span-3 glass rounded-2xl flex flex-col">
+                        <!-- Chat Header -->
+                        <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="text-2xl" id="chat-room-emoji">😊</span>
+                                <div>
+                                    <h4 class="font-semibold text-sm" id="chat-room-name">Happy Vibes</h4>
+                                    <p class="text-xs text-gray-500" id="chat-room-desc">Share your happiest tracks</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-500" id="chat-users-count">34 online</span>
+                                <button class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition-all">
+                                    <i data-lucide="users" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Messages -->
+                        <div class="flex-1 overflow-y-auto chat-messages px-6 py-4 space-y-4" id="chat-messages">
+                            <!-- Injected -->
+                        </div>
+
+                        <!-- Input -->
+                        <div class="px-6 py-4 border-t border-white/5">
+                            <div class="flex items-center gap-3">
+                                <button class="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition-all">
+                                    <i data-lucide="smile" class="w-4 h-4"></i>
+                                </button>
+                                <input type="text" id="chat-input" placeholder="Type a message..." class="flex-1 bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 transition-all" onkeydown="if(event.key==='Enter')sendMessage()">
+                                <button onclick="sendMessage()" class="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors flex items-center gap-2">
+                                    <i data-lucide="send" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Mobile Bottom Nav -->
+        <div class="mobile-nav fixed bottom-0 left-0 right-0 z-40 glass border-t border-white/5 items-center justify-around py-2 px-4">
+            <button onclick="showView('mood-select')" class="mobile-nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-gray-400" data-nav="mood-select">
+                <i data-lucide="smile" class="w-5 h-5"></i>
+                <span class="text-[10px] font-medium">Moods</span>
+            </button>
+            <button onclick="showView('player')" class="mobile-nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-gray-400" data-nav="player">
+                <i data-lucide="play-circle" class="w-5 h-5"></i>
+                <span class="text-[10px] font-medium">Player</span>
+            </button>
+            <button onclick="showView('chat')" class="mobile-nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-gray-400" data-nav="chat">
+                <i data-lucide="message-circle" class="w-5 h-5"></i>
+                <span class="text-[10px] font-medium">Chat</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ===========================
+        // DATA
+        // ===========================
+        const MOODS = [
+            {
+                id: 'happy', name: 'Happy', emoji: '😊', color: '#FFD93D', gradient: 'from-yellow-400 to-amber-500',
+                desc: 'Upbeat & joyful vibes', users: 34,
+                songs: [
+                    { title: 'Walking on Sunshine', artist: 'Katrina & The Waves', duration: '3:58' },
+                    { title: 'Happy', artist: 'Pharrell Williams', duration: '3:53' },
+                    { title: 'Good as Hell', artist: 'Lizzo', duration: '2:39' },
+                    { title: 'Can\'t Stop the Feeling', artist: 'Justin Timberlake', duration: '3:56' },
+                    { title: 'Shake It Off', artist: 'Taylor Swift', duration: '3:39' },
+                    { title: 'Walking on a Dream', artist: 'Empire of the Sun', duration: '3:19' },
+                    { title: 'Best Day of My Life', artist: 'American Authors', duration: '3:14' },
+                    { title: 'On Top of the World', artist: 'Imagine Dragons', duration: '3:02' },
+                ]
+            },
+            {
+                id: 'sad', name: 'Sad', emoji: '😢', color: '#6C9BCF', gradient: 'from-blue-400 to-blue-600',
+                desc: 'Tender, emotional tracks', users: 28,
+                songs: [
+                    { title: 'Someone Like You', artist: 'Adele', duration: '4:45' },
+                    { title: 'Fix You', artist: 'Coldplay', duration: '4:55' },
+                    { title: 'Skinny Love', artist: 'Bon Iver', duration: '3:58' },
+                    { title: 'The Night We Met', artist: 'Lord Huron', duration: '3:28' },
+                    { title: 'Hurt', artist: 'Johnny Cash', duration: '3:38' },
+                    { title: 'Mad World', artist: 'Gary Jules', duration: '3:08' },
+                    { title: 'Everybody Hurts', artist: 'R.E.M.', duration: '5:17' },
+                    { title: 'Tears in Heaven', artist: 'Eric Clapton', duration: '4:33' },
+                ]
+            },
+            {
+                id: 'energetic', name: 'Energetic', emoji: '⚡', color: '#FF6B6B', gradient: 'from-red-400 to-orange-500',
+                desc: 'High-energy power tracks', users: 52,
+                songs: [
+                    { title: 'Blinding Lights', artist: 'The Weeknd', duration: '3:22' },
+                    { title: 'Lose Yourself', artist: 'Eminem', duration: '5:26' },
+                    { title: 'Eye of the Tiger', artist: 'Survivor', duration: '4:05' },
+                    { title: 'Stronger', artist: 'Kanye West', duration: '5:12' },
+                    { title: 'Thunderstruck', artist: 'AC/DC', duration: '4:52' },
+                    { title: 'Run the World', artist: 'Beyoncé', duration: '4:50' },
+                    { title: 'Uptown Funk', artist: 'Bruno Mars', duration: '4:30' },
+                    { title: 'Can\'t Hold Us', artist: 'Macklemore', duration: '4:18' },
+                ]
+            },
+            {
+                id: 'chill', name: 'Chill', emoji: '🌊', color: '#7BED9F', gradient: 'from-emerald-400 to-teal-500',
+                desc: 'Relaxed & mellow beats', users: 41,
+                songs: [
+                    { title: 'Weightless', artist: 'Marconi Union', duration: '8:09' },
+                    { title: 'Sunset Lover', artist: 'Petit Biscuit', duration: '3:28' },
+                    { title: 'Flume', artist: 'Bon Iver', duration: '3:39' },
+                    { title: 'Electric Feel', artist: 'MGMT', duration: '3:49' },
+                    { title: 'Dusk Till Dawn', artist: 'ZAYN ft. Sia', duration: '4:25' },
+                    { title: 'Breathe Me', artist: 'Sia', duration: '4:31' },
+                    { title: 'Summertime Magic', artist: 'Childish Gambino', duration: '3:14' },
+                    { title: 'See You Again', artist: 'Tyler, the Creator', duration: '3:01' },
+                ]
+            },
+            {
+                id: 'focused', name: 'Focused', emoji: '🧠', color: '#A29BFE', gradient: 'from-violet-400 to-purple-600',
+                desc: 'Deep concentration sounds', users: 38,
+                songs: [
+                    { title: 'Strobe', artist: 'Deadmau5', duration: '10:37' },
+                    { title: 'Intro', artist: 'The xx', duration: '2:07' },
+                    { title: 'Reckoner', artist: 'Radiohead', duration: '4:03' },
+                    { title: 'On Melancholy Hill', artist: 'Gorillaz', duration: '3:52' },
+                    { title: 'Midnight City', artist: 'M83', duration: '4:03' },
+                    { title: 'Within', artist: 'Daft Punk', duration: '3:48' },
+                    { title: 'Holocene', artist: 'Bon Iver', duration: '5:36' },
+                    { title: 'Myth', artist: 'Beach House', duration: '4:18' },
+                ]
+            },
+            {
+                id: 'romantic', name: 'Romantic', emoji: '❤️', color: '#FD79A8', gradient: 'from-pink-400 to-rose-500',
+                desc: 'Love & romance vibes', users: 26,
+                songs: [
+                    { title: 'At Last', artist: 'Etta James', duration: '3:02' },
+                    { title: 'Thinking Out Loud', artist: 'Ed Sheeran', duration: '4:41' },
+                    { title: 'All of Me', artist: 'John Legend', duration: '4:29' },
+                    { title: 'Perfect', artist: 'Ed Sheeran', duration: '4:23' },
+                    { title: 'La Vie en Rose', artist: 'Édith Piaf', duration: '3:25' },
+                    { title: 'Make You Feel My Love', artist: 'Adele', duration: '3:52' },
+                    { title: 'I Found You', artist: 'Benny Blanco', duration: '3:20' },
+                    { title: 'Kiss Me', artist: 'Sixpence None The Richer', duration: '3:31' },
+                ]
+            },
+            {
+                id: 'angry', name: 'Angry', emoji: '🔥', color: '#E17055', gradient: 'from-orange-500 to-red-600',
+                desc: 'Raw & powerful riffs', users: 18,
+                songs: [
+                    { title: 'Break Stuff', artist: 'Limp Bizkit', duration: '2:45' },
+                    { title: 'Killing in the Name', artist: 'Rage Against the Machine', duration: '5:13' },
+                    { title: 'Bodies', artist: 'Drowning Pool', duration: '3:22' },
+                    { title: 'Given Up', artist: 'Linkin Park', duration: '3:09' },
+                    { title: 'Chop Suey!', artist: 'System of a Down', duration: '3:30' },
+                    { title: 'Last Resort', artist: 'Papa Roach', duration: '3:19' },
+                    { title: 'Down with the Sickness', artist: 'Disturbed', duration: '4:28' },
+                    { title: 'Numb', artist: 'Linkin Park', duration: '3:07' },
+                ]
+            },
+            {
+                id: 'melancholy', name: 'Melancholy', emoji: '🌧️', color: '#74B9FF', gradient: 'from-sky-400 to-indigo-500',
+                desc: 'Bittersweet & reflective', users: 22,
+                songs: [
+                    { title: 'Creep', artist: 'Radiohead', duration: '3:58' },
+                    { title: 'Everybody Wants to Rule the World', artist: 'Tears for Fears', duration: '4:11' },
+                    { title: 'Landslide', artist: 'Fleetwood Mac', duration: '3:19' },
+                    { title: 'Fast Car', artist: 'Tracy Chapman', duration: '4:53' },
+                    { title: 'Between the Bars', artist: 'Elliott Smith', duration: '2:21' },
+                    { title: 'NMH 1942', artist: 'Neutral Milk Hotel', duration: '2:21' },
+                    { title: 'Hallelujah', artist: 'Jeff Buckley', duration: '6:53' },
+                    { title: 'Anthems for a Seventeen Year-Old Girl', artist: 'Broken Social Scene', duration: '3:25' },
+                ]
+            },
+        ];
+
+        const CHAT_USERS = [
+            { name: 'Luna', avatar: '🌙', color: '#a78bfa' },
+            { name: 'Alex', avatar: '🦊', color: '#f472b6' },
+            { name: 'River', avatar: '🌊', color: '#38bdf8' },
+            { name: 'Sage', avatar: '🌿', color: '#34d399' },
+            { name: 'Ember', avatar: '🔥', color: '#fb923c' },
+            { name: 'Cloud', avatar: '☁️', color: '#94a3b8' },
+            { name: 'Violet', avatar: '💜', color: '#c084fc' },
+            { name: 'Sol', avatar: '☀️', color: '#fbbf24' },
+        ];
+
+        const CHAT_MESSAGES_SAMPLE = [
+            "This playlist is perfect right now 🎵",
+            "Anyone else vibing hard?",
+            "This track always hits different",
+            "Just discovered my new favorite song!",
+            "The mood is real today",
+            "Can we get more songs like this?",
+            "Perfect background music for studying",
+            "This whole mix is 🔥🔥🔥",
+            "Needed this today fr",
+            "Who else is here at 2am? 😂",
+            "This album goes so hard",
+            "Adding this to my favorites!",
+            "MoodMatch really understood the assignment",
+            "Can't stop listening on repeat",
+            "This song gives me chills every time",
+        ];
+
+        // ===========================
+        // STATE
+        // ===========================
+        let currentMood = null;
+        let isPlaying = false;
+        let currentTrackIndex = 0;
+        let progressInterval = null;
+        let currentProgress = 35;
+
+        // ===========================
+        // INIT
+        // ===========================
+        function init() {
+            renderMoodGrid();
+            renderRoomList();
+            lucide.createIcons();
+            simulateOnlineCount();
+        }
+
+        // ===========================
+        // VIEWS
+        // ===========================
+        function showView(viewId) {
+            document.querySelectorAll('.view-section').forEach(el => {
+                el.classList.remove('active-view');
+                el.classList.add('hidden-view');
+            });
+
+            const target = document.getElementById('view-' + viewId);
+            if (target) {
+                target.classList.remove('hidden-view');
+                target.classList.add('active-view');
+            }
+
+            // Update nav
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-white', 'bg-white/5');
+                btn.classList.add('text-gray-400');
+                if (btn.dataset.nav === viewId) {
+                    btn.classList.add('text-white', 'bg-white/5');
+                    btn.classList.remove('text-gray-400');
+                }
+            });
+
+            document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+                btn.classList.remove('text-white');
+                btn.classList.add('text-gray-400');
+                if (btn.dataset.nav === viewId) {
+                    btn.classList.add('text-white');
+                    btn.classList.remove('text-gray-400');
+                }
+            });
+        }
+
+        // ===========================
+        // MOOD GRID
+        // ===========================
+        function renderMoodGrid() {
+            const grid = document.getElementById('mood-grid');
+            grid.innerHTML = MOODS.map(mood => `
+                <div class="mood-card glass rounded-2xl p-5 group" onclick="selectMood('${mood.id}')" data-mood="${mood.id}">
+                    <div class="mood-glow rounded-2xl" style="background: ${mood.color};"></div>
+                    <div class="text-4xl mb-3">${mood.emoji}</div>
+                    <h3 class="text-lg font-bold mb-1">${mood.name}</h3>
+                    <p class="text-xs text-gray-400 mb-3">${mood.desc}</p>
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-1.5 h-1.5 rounded-full" style="background: ${mood.color};"></div>
+                        <span class="text-[10px] text-gray-500">${mood.users} listening</span>
+                    </div>
+                    <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-r ${mood.gradient} flex items-center justify-center">
+                            <i data-lucide="play" class="w-4 h-4 text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            lucide.createIcons();
+        }
+
+        function selectMood(moodId) {
+            currentMood = MOODS.find(m => m.id === moodId);
+            if (!currentMood) return;
+
+            currentTrackIndex = 0;
+            currentProgress = 0;
+
+            // Update active mood card
+            document.querySelectorAll('.mood-card').forEach(card => {
+                card.classList.remove('active');
+                if (card.dataset.mood === moodId) {
+                    card.classList.add('active');
+                }
+            });
+
+            // Show banner
+            const banner = document.getElementById('active-mood-banner');
+            banner.classList.remove('hidden');
+            document.getElementById('banner-emoji').textContent = currentMood.emoji;
+            document.getElementById('banner-mood-name').textContent = currentMood.name + ' Mix';
+            document.getElementById('banner-emoji').style.background = currentMood.color + '20';
+
+            // Auto-play
+            isPlaying = true;
+            updatePlayer();
+            showView('player');
+            startProgress();
+            startChatSimulation();
+            showToast(`Now playing ${currentMood.name} Mix 🎵`, currentMood.color);
+        }
+
+        // ===========================
+        // PLAYER
+        // ===========================
+        function updatePlayer() {
+            if (!currentMood) return;
+
+            const track = currentMood.songs[currentTrackIndex];
+
+            // Vinyl color
+            document.getElementById('vinyl-glow').style.background = currentMood.color + '40';
+
+            // Track info
+            document.getElementById('track-title').textContent = track.title;
+            document.getElementById('track-artist').textContent = track.artist;
+
+            // Mood badge
+            const badge = document.getElementById('track-mood-badge');
+            badge.textContent = currentMood.name;
+            badge.style.background = currentMood.color + '20';
+            badge.style.color = currentMood.color;
+
+            // Album art
+            const seed = currentMood.id + currentTrackIndex;
+            document.getElementById('album-art').src = `http://static.photos/${currentMood.id === 'happy' ? 'minimal' : currentMood.id === 'energetic' ? 'technology' : currentMood.id === 'romantic' ? 'minimal' : currentMood.id === 'angry' ? 'abstract' : 'nature'}/200x200/${seed.charCodeAt(0) * 7}`;
+
+            // Playlist title
+            document.getElementById('playlist-title').textContent = currentMood.name + ' Mix';
+            document.getElementById('playlist-desc').textContent = currentMood.desc;
+
+            // Track list
+            renderTrackList();
+
+            // Play icon
+            updatePlayButton();
+
+            // Vinyl
+            const vinyl = document.getElementById('vinyl-disc');
+            if (isPlaying) {
+                vinyl.classList.remove('paused');
+            } else {
+                vinyl.classList.add('paused');
+            }
+
+            // Equalizer
+            document.querySelectorAll('.eq-bar-1, .eq-bar-2, .eq-bar-3, .eq-bar-4').forEach(bar => {
+                if (isPlaying) bar.classList.remove('paused');
+                else bar.classList.add('paused');
+            });
+        }
+
+        function renderTrackList() {
+            if (!currentMood) return;
+
+            const list = document.getElementById('track-list');
+            list.innerHTML = currentMood.songs.map((song, i) => {
+                const isActive = i === currentTrackIndex;
+                const seed = currentMood.id + i;
+                return `
+                    <div class="track-row flex items-center gap-4 px-4 py-2.5 rounded-xl ${isActive ? 'bg-white/5' : ''}" onclick="playTrack(${i})">
+                        <div class="w-8 text-center flex items-center justify-center">
+                            ${isActive ?
+                                `<div class="flex items-center gap-0.5">
+                                    <div class="w-0.5 h-2 rounded-full ${isPlaying ? '' : 'paused'}" style="background:${currentMood.color};animation:eq1 0.8s ease-in-out infinite ${isPlaying ? '' : 'paused'}"></div>
+                                    <div class="w-0.5 h-3.5 rounded-full" style="background:${currentMood.color};animation:eq2 0.6s ease-in-out infinite 0.1s ${isPlaying ? '' : 'paused'}"></div>
+                                    <div class="w-0.5 h-2.5 rounded-full" style="background:${currentMood.color};animation:eq3 0.7s ease-in-out infinite 0.2s ${isPlaying ? '' : 'paused'}"></div>
+                                </div>` :
+                                `<span class="text-xs text-gray-500">${i + 1}</span>`
+                            }
+                        </div>
+                        <img src="http://static.photos/${i < 4 ? 'abstract' : 'nature'}/40x40/${seed.charCodeAt(0) * 3}" class="w-10 h-10 rounded-lg object-cover flex-shrink-0" alt="">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm ${isActive ? 'font-semibold' : 'font-medium'} truncate ${isActive ? '' : 'text-gray-300'}">${song.title}</p>
+                            <p class="text-xs text-gray-500 truncate">${song.artist}</p>
+                        </div>
+                        <span class="text-xs text-gray-500 font-mono">${song.duration}</span>
+                        <button class="track-play w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-all">
+                            <i data-lucide="${isActive && isPlaying ? 'pause' : 'play'}" class="w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-gray-400'}"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function playTrack(index) {
+            currentTrackIndex = index;
+            currentProgress = 0;
+            isPlaying = true;
+            updatePlayer();
+            startProgress();
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            updatePlayer();
+            if (isPlaying) startProgress();
+            else stopProgress();
+        }
+
+        function nextTrack() {
+            if (!currentMood) return;
+            currentTrackIndex = (currentTrackIndex + 1) % currentMood.songs.length;
+            currentProgress = 0;
+            isPlaying = true;
+            updatePlayer();
+            startProgress();
+        }
+
+        function prevTrack() {
+            if (!currentMood) return;
+            currentTrackIndex = (currentTrackIndex - 1 + currentMood.songs.length) % currentMood.songs.length;
+            currentProgress = 0;
+            isPlaying = true;
+            updatePlayer();
+            startProgress();
+        }
+
+        function shufflePlaylist() {
+            if (!currentMood) return;
+            for (let i = currentMood.songs.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [currentMood.songs[i], currentMood.songs[j]] = [currentMood.songs[j], currentMood.songs[i]];
+            }
+            currentTrackIndex = 0;
+            currentProgress = 0;
+            isPlaying = true;
+            updatePlayer();
+            startProgress();
+            showToast('Playlist shuffled! 🔀', currentMood.color);
+        }
+
+        function updatePlayButton() {
+            const btn = document.getElementById('play-btn');
+            const icon = document.getElementById('play-icon');
+            if (isPlaying) {
+                icon.setAttribute('data-lucide', 'pause');
+                icon.classList.remove('ml-0.5');
+            } else {
+                icon.setAttribute('data-lucide', 'play');
+                icon.classList.add('ml-0.5');
+            }
+            lucide.createIcons();
+        }
+
+        function startProgress() {
+            stopProgress();
+            progressInterval = setInterval(() => {
+                if (!isPlaying) return;
+                currentProgress += 0.5;
+                if (currentProgress >= 100) {
+                    nextTrack();
+                    return;
+                }
+                const bar = document.getElementById('progress-bar');
+                if (bar) bar.style.width = currentProgress + '%';
+
+                // Update time
+                if (currentMood) {
+                    const song = currentMood.songs[currentTrackIndex];
+                    const parts = song.duration.split(':');
+                    const totalSec = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+                    const currentSec = Math.floor(totalSec * currentProgress / 100);
+                    const min = Math.floor(currentSec / 60);
+                    const sec = currentSec % 60;
+                    document.getElementById('time-current').textContent = min + ':' + String(sec).padStart(2, '0');
+                    document.getElementById('time-total').textContent = song.duration;
+                }
+            }, 500);
+        }
+
+        function stopProgress() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+        }
+
+        // ===========================
+        // CHAT
+        // ===========================
+        function renderRoomList() {
+            const list = document.getElementById('room-list');
+            list.innerHTML = MOODS.map(mood => `
+                <button onclick="joinRoom('${mood.id}')" class="room-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all hover:bg-white/5 ${currentMood && currentMood.id === mood.id ? 'bg-white/5' : ''}" data-room="${mood.id}">
+                    <span class="text-lg">${mood.emoji}</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium truncate">${mood.name}</p>
+                        <p class="text-[10px] text-gray-500">${mood.users} listening</p>
+                    </div>
+                    <div class="w-2 h-2 rounded-full" style="background: ${mood.color}; opacity: 0.6;"></div>
+                </button>
+            `).join('');
+        }
+
+        function joinRoom(moodId) {
+            const mood = MOODS.find(m => m.id === moodId);
+            if (!mood) return;
+
+            if (!currentMood || currentMood.id !== moodId) {
+                currentMood = mood;
+                updatePlayer();
+            }
+
+            document.getElementById('chat-room-emoji').textContent = mood.emoji;
+            document.getElementById('chat-room-name').textContent = mood.name + ' Vibes';
+            document.getElementById('chat-room-desc').textContent = mood.desc;
+            document.getElementById('chat-users-count').textContent = mood.users + ' online';
+
+            // Update room active state
+            document.querySelectorAll('.room-btn').forEach(btn => {
+                btn.classList.remove('bg-white/5');
+                if (btn.dataset.room === moodId) {
+                    btn.classList.add('bg-white/5');
+                }
+            });
+
+            // Load initial messages
+            loadChatMessages(mood);
+            startChatSimulation();
+        }
+
+        function loadChatMessages(mood) {
+            const container = document.getElementById('chat-messages');
+            const messages = [];
+
+            // System message
+            messages.push({
+                type: 'system',
+                text: `Welcome to the ${mood.name} room! 🎵`
+            });
+
+            // Generate some history
+            for (let i = 0; i < 8; i++) {
+                const user = CHAT_USERS[Math.floor(Math.random() * CHAT_USERS.length)];
+                const text = CHAT_MESSAGES_SAMPLE[Math.floor(Math.random() * CHAT_MESSAGES_SAMPLE.length)];
+                const minsAgo = Math.floor(Math.random() * 30) + 1;
+                messages.push({
+                    type: 'user',
+                    user,
+                    text,
+                    time: minsAgo + 'm ago'
+                });
+            }
+
+            container.innerHTML = messages.map(msg => createMessageHTML(msg)).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function createMessageHTML(msg) {
+            if (msg.type === 'system') {
+                return `
+                    <div class="flex justify-center">
+                        <span class="px-3 py-1 rounded-full text-xs text-gray-500 glass-light">${msg.text}</span>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="flex items-start gap-3 slide-up">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm" style="background: ${msg.user.color}20;">
+                        ${msg.user.avatar}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-sm font-semibold" style="color: ${msg.user.color};">${msg.user.name}</span>
+                            <span class="text-[10px] text-gray-600">${msg.time}</span>
+                        </div>
+                        <p class="text-sm text-gray-300 mt-0.5">${msg.text}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const user = { name: 'You', avatar: '🎵', color: '#a78bfa' };
+            const msg = { type: 'user', user, text, time: 'now' };
+
+            const container = document.getElementById('chat-messages');
+            container.insertAdjacentHTML('beforeend', createMessageHTML(msg));
+            container.scrollTop = container.scrollHeight;
+
+            input.value = '';
+
+            // Simulate response
+            setTimeout(() => {
+                const responder = CHAT_USERS[Math.floor(Math.random() * CHAT_USERS.length)];
+                const responses = [
+                    "Totally agree! 💯",
+                    "Yeah this vibe is unmatched 🎶",
+                    "Fr fr!",
+                    "This song hits different at night",
+                    "OMG yes! 🔥",
+                    "Adding to my playlist rn",
+                    "You get it! 😌",
+                    "The whole album is like this",
+                    "MoodMatch always delivers",
+                    "Can we get more of this?",
+                ];
+                const responseText = responses[Math.floor(Math.random() * responses.length)];
+                const responseMsg = { type: 'user', user: responder, text: responseText, time: 'now' };
+                container.insertAdjacentHTML('beforeend', createMessageHTML(responseMsg));
+                container.scrollTop = container.scrollHeight;
+            }, 1000 + Math.random() * 2000);
+        }
+
+        let chatSimInterval = null;
+
+        function startChatSimulation() {
+            if (chatSimInterval) clearInterval(chatSimInterval);
+
+            chatSimInterval = setInterval(() => {
+                const container = document.getElementById('chat-messages');
+                if (!container) return;
+
+                // Only add if chat view is somewhat visible
+                const chatView = document.getElementById('view-chat');
+                if (!chatView || chatView.classList.contains('hidden-view')) return;
+
+                const user = CHAT_USERS[Math.floor(Math.random() * CHAT_USERS.length)];
+                const text = CHAT_MESSAGES_SAMPLE[Math.floor(Math.random() * CHAT_MESSAGES_SAMPLE.length)];
+                const msg = { type: 'user', user, text, time: 'now' };
+
+                container.insertAdjacentHTML('beforeend', createMessageHTML(msg));
+                container.scrollTop = container.scrollHeight;
+
+                // Keep max 50 messages
+                while (container.children.length > 50) {
+                    container.removeChild(container.firstChild);
+                }
+            }, 5000 + Math.random() * 8000);
+        }
+
+        // ===========================
+        // TOAST
+        // ===========================
+        function showToast(message, color = '#7c5cf5') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'glass rounded-xl px-4 py-3 flex items-center gap-3 max-w-xs toast-in';
+            toast.style.borderLeft = `3px solid ${color}`;
+            toast.innerHTML = `
+                <span class="text-sm text-white font-medium">${message}</span>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('toast-in');
+                toast.classList.add('toast-out');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ===========================
+        // SIMULATIONS
+        // ===========================
+        function simulateOnlineCount() {
+            setInterval(() => {
+                const base = 240;
+                const variation = Math.floor(Math.random() * 30);
+                document.getElementById('online-count').textContent = (base + variation) + ' online';
+            }, 10000);
+        }
+
+        // ===========================
+        // STARTUP
+        // ===========================
+        document.addEventListener('DOMContentLoaded', init);
+
+        // Auto-select mood if user comes from chat
+        document.getElementById('chat-input').addEventListener('focus', () => {
+            if (!currentMood) {
+                joinRoom('happy');
+            }
+        });
+    </script>
+</body>
+</html>

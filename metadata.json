@@ -1,0 +1,8 @@
+{
+  "name": "MoodMatch",
+  "description": "Mobile-first mood picker, song matchmaking with Spotify/YouTube redirection, and real-time mood-specific chat rooms assisted by Gemini DJ.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
